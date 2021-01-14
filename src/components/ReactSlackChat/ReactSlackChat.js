@@ -255,8 +255,11 @@ class ReactSlackChat extends Component {
       username: this.props.botName,
     })
       .then((data) => {
+        let latestReply = data.message;
+        let test = [...this.state.messages, latestReply];
         this.setState(
           {
+            messages: test,
             postMyMessage: '',
             sendingLoader: false,
           },
@@ -323,15 +326,15 @@ class ReactSlackChat extends Component {
               // Iterate over the new messages and exec any action hooks if found
               newMessages
                 ? newMessages.map((message) =>
-                    execHooksIfFound({
-                      bot: this.bot,
-                      message,
-                      username: this.props.botName,
-                      customHooks: this.props.hooks,
-                      apiToken: this.apiToken,
-                      channel: this.activeChannel.id,
-                    })
-                  )
+                  execHooksIfFound({
+                    bot: this.bot,
+                    message,
+                    username: this.props.botName,
+                    customHooks: this.props.hooks,
+                    apiToken: this.apiToken,
+                    channel: this.activeChannel.id,
+                  })
+                )
                 : null;
             }
             // set the state with new messages
@@ -341,6 +344,7 @@ class ReactSlackChat extends Component {
                 that.messages = that.messages.filter((message) => {
                   if (message.username === that.props.botName) {
                     if (message.thread_ts) {
+
                       this.state.userThreadTss.indexOf(message.thread_ts) === -1
                         ? this.state.userThreadTss.push(message.thread_ts)
                         : null;
@@ -365,6 +369,37 @@ class ReactSlackChat extends Component {
                 ts: this.chatInitiatedTs,
               });
             }
+
+            if (this.state.userThreadTss > 0) {
+              return this.bot.conversations
+                .replies({
+                  token: this.apiToken,
+                  channel: channel.id,
+                  ts: Number(this.state.userThreadTss[0]).toFixed(6)
+                }).then((messagesData) => {
+                  // loaded channel history
+                  return this.setState(
+                    {
+                      messages: messagesData.messages,
+                    },
+                    () => {
+                      // if div is already scrolled to bottom, scroll down again just incase a new message has arrived
+                      const chatMessages = document.getElementById(
+                        'widget-reactSlakChatMessages'
+                      );
+                      chatMessages.scrollTop =
+                        chatMessages.scrollHeight < chatMessages.scrollTop + 600 ||
+                          messagesLength === 0
+                          ? chatMessages.scrollHeight
+                          : chatMessages.scrollTop;
+                    }
+                  );
+                }).catch((err) => {
+                  debugLog(
+                    `There was an error loading messages for ${channel.name}. ${err}`
+                  );
+                });
+            }
             return this.setState(
               {
                 messages: that.messages,
@@ -376,7 +411,7 @@ class ReactSlackChat extends Component {
                 );
                 chatMessages.scrollTop =
                   chatMessages.scrollHeight < chatMessages.scrollTop + 600 ||
-                  messagesLength === 0
+                    messagesLength === 0
                     ? chatMessages.scrollHeight
                     : chatMessages.scrollTop;
               }
